@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import InputForm from './components/InputForm';
 import PageGrid from './components/PageGrid';
+import LayerView from './components/LayerView';
 import { figmaApiService } from './services/figmaApi';
-import { FigmaFile, PageWithThumbnail } from './types/figma';
+import { FigmaFile, PageWithThumbnail, LayerWithThumbnail, FigmaNode } from './types/figma';
 import './App.css';
 
 interface AppState {
-  phase: 'input' | 'loading' | 'preview';
+  phase: 'input' | 'loading' | 'preview' | 'layers';
   token: string;
   fileId: string;
   file: FigmaFile | null;
   pages: PageWithThumbnail[];
+  currentPage: PageWithThumbnail | null;
+  layers: LayerWithThumbnail[];
+  layersLoading: boolean;
   error: string | null;
 }
 
@@ -21,6 +25,9 @@ function App() {
     fileId: '',
     file: null,
     pages: [],
+    currentPage: null,
+    layers: [],
+    layersLoading: false,
     error: null,
   });
 
@@ -104,6 +111,122 @@ function App() {
       phase: 'input',
       file: null,
       pages: [],
+      currentPage: null,
+      layers: [],
+      error: null,
+    }));
+  };
+
+  const handlePageClick = async (page: PageWithThumbnail) => {
+    setState(prev => ({
+      ...prev,
+      phase: 'layers',
+      currentPage: page,
+      layers: [],
+      layersLoading: true,
+      error: null,
+    }));
+
+    try {
+      // Fetch detailed page information
+      const nodesResponse = await figmaApiService.getPageNodes(state.fileId, [page.id]);
+      
+      if (!nodesResponse.nodes[page.id]) {
+        throw new Error('Page data not found');
+      }
+
+      const pageNode = nodesResponse.nodes[page.id].document;
+      
+      // Extract all child layers, flattening the structure for easier display
+      const extractLayers = (node: FigmaNode, depth = 0): FigmaNode[] => {
+        const layers: FigmaNode[] = [];
+        
+        if (node.children && node.children.length > 0) {
+          for (const child of node.children) {
+            layers.push(child);
+            // Also include children of children (but limit depth to avoid too much nesting)
+            if (depth < 2) {
+              layers.push(...extractLayers(child, depth + 1));
+            }
+          }
+        }
+        
+        return layers;
+      };
+
+      const allLayers = extractLayers(pageNode);
+      
+      // Filter out layers that are too small or not visible
+      const visibleLayers = allLayers.filter(layer => {
+        const box = layer.absoluteBoundingBox;
+        return !box || (box.width > 5 && box.height > 5);
+      });
+
+      // Convert to LayerWithThumbnail format
+      const layersWithThumbnails: LayerWithThumbnail[] = visibleLayers.map(layer => ({
+        ...layer,
+        loading: true,
+      }));
+
+      setState(prev => ({
+        ...prev,
+        layers: layersWithThumbnails,
+        layersLoading: false,
+      }));
+
+      // Fetch thumbnails for layers (limit to first 20 for performance)
+      const layersToFetch = layersWithThumbnails.slice(0, 20);
+      if (layersToFetch.length > 0) {
+        await fetchLayerThumbnails(state.fileId, layersToFetch);
+      }
+
+    } catch (error) {
+      console.error('Error fetching page layers:', error);
+      setState(prev => ({
+        ...prev,
+        layersLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to load page layers',
+      }));
+    }
+  };
+
+  const fetchLayerThumbnails = async (fileId: string, layers: LayerWithThumbnail[]) => {
+    const layerIds = layers.map(layer => layer.id);
+    
+    try {
+      const thumbnails = await figmaApiService.getLayerThumbnails(fileId, layerIds);
+      
+      setState(prev => ({
+        ...prev,
+        layers: prev.layers.map(layer => ({
+          ...layer,
+          loading: false,
+          thumbnailUrl: thumbnails[layer.id] || undefined,
+          error: thumbnails[layer.id] ? undefined : 'Thumbnail not available',
+        })),
+      }));
+    } catch (error) {
+      console.error('Error fetching layer thumbnails:', error);
+      
+      // Update all layers to show error state
+      setState(prev => ({
+        ...prev,
+        layers: prev.layers.map(layer => ({
+          ...layer,
+          loading: false,
+          error: error instanceof Error ? error.message : 'Failed to load thumbnail',
+        })),
+      }));
+    }
+  };
+
+  const handleBackToPages = () => {
+    setState(prev => ({
+      ...prev,
+      phase: 'preview',
+      currentPage: null,
+      layers: [],
+      layersLoading: false,
       error: null,
     }));
   };
@@ -133,6 +256,18 @@ function App() {
           pages={state.pages}
           fileName={state.file.name}
           onBack={handleBack}
+          onPageClick={handlePageClick}
+        />
+      )}
+
+      {state.phase === 'layers' && state.file && state.currentPage && (
+        <LayerView
+          layers={state.layers}
+          pageName={state.currentPage.name}
+          fileName={state.file.name}
+          onBack={handleBackToPages}
+          loading={state.layersLoading}
+          error={state.error}
         />
       )}
     </div>

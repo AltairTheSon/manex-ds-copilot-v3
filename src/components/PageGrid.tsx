@@ -6,9 +6,10 @@ interface PageGridProps {
   pages: PageWithThumbnail[];
   fileName: string;
   onBack: () => void;
+  onPageClick: (page: PageWithThumbnail) => void;
 }
 
-const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack }) => {
+const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onPageClick }) => {
   const formatBackgroundColor = (backgroundColor?: { r: number; g: number; b: number; a: number }) => {
     if (!backgroundColor) return '#ffffff';
     const { r, g, b, a } = backgroundColor;
@@ -33,7 +34,12 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack }) => {
 
       <div className="page-grid">
         {pages.map((page) => (
-          <div key={page.id} className="page-card">
+          <div 
+            key={page.id} 
+            className="page-card"
+            onClick={() => onPageClick(page)}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="page-thumbnail-container">
               {page.loading ? (
                 <div className="page-loading">

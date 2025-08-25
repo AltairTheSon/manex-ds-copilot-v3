@@ -49,3 +49,53 @@ export interface PageWithThumbnail extends FigmaPage {
   loading?: boolean;
   error?: string;
 }
+
+// Layer/Node related interfaces
+export interface FigmaNode {
+  id: string;
+  name: string;
+  type: string;
+  visible?: boolean;
+  locked?: boolean;
+  children?: FigmaNode[];
+  absoluteBoundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  fills?: any[];
+  strokes?: any[];
+  effects?: any[];
+  characters?: string;
+  style?: any;
+}
+
+export interface FigmaNodesResponse {
+  name: string;
+  role: string;
+  lastModified: string;
+  editorType: string;
+  thumbnailUrl: string;
+  version: string;
+  nodes: {
+    [key: string]: {
+      document: FigmaNode;
+      components: any;
+      schemaVersion: number;
+      styles: any;
+    };
+  };
+}
+
+export interface LayerWithThumbnail extends FigmaNode {
+  thumbnailUrl?: string;
+  loading?: boolean;
+  error?: string;
+}
+
+export interface PageLayersData {
+  pageId: string;
+  pageName: string;
+  layers: LayerWithThumbnail[];
+}
