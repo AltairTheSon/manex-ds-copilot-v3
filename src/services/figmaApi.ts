@@ -157,6 +157,40 @@ class FigmaApiService {
     }
   }
 
+  async getFrameThumbnails(fileId: string, frameIds: string[]): Promise<{ [key: string]: string }> {
+    try {
+      if (!this.token) {
+        throw new Error('Access token is required');
+      }
+
+      if (!fileId || frameIds.length === 0) {
+        throw new Error('File ID and frame IDs are required');
+      }
+
+      const idsParam = frameIds.join(',');
+      const response: AxiosResponse<FigmaImageResponse> = await axios.get(
+        `${FIGMA_API_BASE}/images/${fileId}`,
+        {
+          headers: this.getHeaders(),
+          params: {
+            ids: idsParam,
+            format: 'png',
+            scale: 1,
+          },
+          timeout: 20000,
+        }
+      );
+
+      if (response.data.err) {
+        throw new Error(`Figma API Error: ${response.data.err}`);
+      }
+
+      return response.data.images;
+    } catch (error) {
+      this.handleApiError(error);
+    }
+  }
+
   validateToken(token: string): boolean {
     // Basic token validation - Figma personal access tokens are typically 76 characters
     const tokenRegex = /^figd_[a-zA-Z0-9_-]{71}$/;

@@ -2,19 +2,22 @@ import React, { useState } from 'react';
 import InputForm from './components/InputForm';
 import PageGrid from './components/PageGrid';
 import LayerView from './components/LayerView';
+import FrameView from './components/FrameView';
 import { figmaApiService } from './services/figmaApi';
-import { FigmaFile, PageWithThumbnail, LayerWithThumbnail, FigmaNode } from './types/figma';
+import { FigmaFile, PageWithThumbnail, LayerWithThumbnail, FrameWithThumbnail, FigmaNode } from './types/figma';
 import './App.css';
 
 interface AppState {
-  phase: 'input' | 'loading' | 'preview' | 'layers';
+  phase: 'input' | 'loading' | 'preview' | 'layers' | 'frames';
   token: string;
   fileId: string;
   file: FigmaFile | null;
   pages: PageWithThumbnail[];
   currentPage: PageWithThumbnail | null;
   layers: LayerWithThumbnail[];
+  frames: FrameWithThumbnail[];
   layersLoading: boolean;
+  framesLoading: boolean;
   error: string | null;
 }
 
@@ -27,7 +30,9 @@ function App() {
     pages: [],
     currentPage: null,
     layers: [],
+    frames: [],
     layersLoading: false,
+    framesLoading: false,
     error: null,
   });
 
@@ -117,7 +122,7 @@ function App() {
     }));
   };
 
-  const handlePageClick = async (page: PageWithThumbnail) => {
+  const handleViewLayers = async (page: PageWithThumbnail) => {
     setState(prev => ({
       ...prev,
       phase: 'layers',
@@ -190,6 +195,80 @@ function App() {
     }
   };
 
+  const handleViewFrames = async (page: PageWithThumbnail) => {
+    setState(prev => ({
+      ...prev,
+      phase: 'frames',
+      currentPage: page,
+      frames: [],
+      framesLoading: true,
+      error: null,
+    }));
+
+    try {
+      // Fetch detailed page information
+      const nodesResponse = await figmaApiService.getPageNodes(state.fileId, [page.id]);
+      
+      if (!nodesResponse.nodes[page.id]) {
+        throw new Error('Page data not found');
+      }
+
+      const pageNode = nodesResponse.nodes[page.id].document;
+      
+      // Extract frames from the page node
+      const extractFrames = (node: FigmaNode): FigmaNode[] => {
+        const frames: FigmaNode[] = [];
+        
+        if (node.children && node.children.length > 0) {
+          for (const child of node.children) {
+            // Only include nodes that are frames
+            if (child.type === 'FRAME') {
+              frames.push(child);
+            }
+            // Also check children for nested frames
+            frames.push(...extractFrames(child));
+          }
+        }
+        
+        return frames;
+      };
+
+      const allFrames = extractFrames(pageNode);
+      
+      // Filter out frames that are too small
+      const visibleFrames = allFrames.filter(frame => {
+        const box = frame.absoluteBoundingBox;
+        return !box || (box.width > 10 && box.height > 10);
+      });
+
+      // Convert to FrameWithThumbnail format
+      const framesWithThumbnails: FrameWithThumbnail[] = visibleFrames.map(frame => ({
+        ...frame,
+        loading: true,
+      }));
+
+      setState(prev => ({
+        ...prev,
+        frames: framesWithThumbnails,
+        framesLoading: false,
+      }));
+
+      // Fetch thumbnails for frames (limit to first 20 for performance)
+      const framesToFetch = framesWithThumbnails.slice(0, 20);
+      if (framesToFetch.length > 0) {
+        await fetchFrameThumbnails(state.fileId, framesToFetch);
+      }
+
+    } catch (error) {
+      console.error('Error fetching page frames:', error);
+      setState(prev => ({
+        ...prev,
+        framesLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to load page frames',
+      }));
+    }
+  };
+
   const fetchLayerThumbnails = async (fileId: string, layers: LayerWithThumbnail[]) => {
     const layerIds = layers.map(layer => layer.id);
     
@@ -220,13 +299,45 @@ function App() {
     }
   };
 
+  const fetchFrameThumbnails = async (fileId: string, frames: FrameWithThumbnail[]) => {
+    const frameIds = frames.map(frame => frame.id);
+    
+    try {
+      const thumbnails = await figmaApiService.getFrameThumbnails(fileId, frameIds);
+      
+      setState(prev => ({
+        ...prev,
+        frames: prev.frames.map(frame => ({
+          ...frame,
+          loading: false,
+          thumbnailUrl: thumbnails[frame.id] || undefined,
+          error: thumbnails[frame.id] ? undefined : 'Thumbnail not available',
+        })),
+      }));
+    } catch (error) {
+      console.error('Error fetching frame thumbnails:', error);
+      
+      // Update all frames to show error state
+      setState(prev => ({
+        ...prev,
+        frames: prev.frames.map(frame => ({
+          ...frame,
+          loading: false,
+          error: error instanceof Error ? error.message : 'Failed to load thumbnail',
+        })),
+      }));
+    }
+  };
+
   const handleBackToPages = () => {
     setState(prev => ({
       ...prev,
       phase: 'preview',
       currentPage: null,
       layers: [],
+      frames: [],
       layersLoading: false,
+      framesLoading: false,
       error: null,
     }));
   };
@@ -256,7 +367,8 @@ function App() {
           pages={state.pages}
           fileName={state.file.name}
           onBack={handleBack}
-          onPageClick={handlePageClick}
+          onViewLayers={handleViewLayers}
+          onViewFrames={handleViewFrames}
         />
       )}
 
@@ -267,6 +379,17 @@ function App() {
           fileName={state.file.name}
           onBack={handleBackToPages}
           loading={state.layersLoading}
+          error={state.error}
+        />
+      )}
+
+      {state.phase === 'frames' && state.file && state.currentPage && (
+        <FrameView
+          frames={state.frames}
+          pageName={state.currentPage.name}
+          fileName={state.file.name}
+          onBack={handleBackToPages}
+          loading={state.framesLoading}
           error={state.error}
         />
       )}
