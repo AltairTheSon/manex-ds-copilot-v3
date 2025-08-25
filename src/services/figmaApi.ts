@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { FigmaFile, FigmaImageResponse } from '../types/figma';
+import { FigmaFile, FigmaImageResponse, FigmaNodesResponse } from '../types/figma';
 
 const FIGMA_API_BASE = 'https://api.figma.com/v1';
 
@@ -82,6 +82,68 @@ class FigmaApiService {
             scale: 2,
           },
           timeout: 15000,
+        }
+      );
+
+      if (response.data.err) {
+        throw new Error(`Figma API Error: ${response.data.err}`);
+      }
+
+      return response.data.images;
+    } catch (error) {
+      this.handleApiError(error);
+    }
+  }
+
+  async getPageNodes(fileId: string, pageIds: string[]): Promise<FigmaNodesResponse> {
+    try {
+      if (!this.token) {
+        throw new Error('Access token is required');
+      }
+
+      if (!fileId || pageIds.length === 0) {
+        throw new Error('File ID and page IDs are required');
+      }
+
+      const idsParam = pageIds.join(',');
+      const response: AxiosResponse<FigmaNodesResponse> = await axios.get(
+        `${FIGMA_API_BASE}/files/${fileId}/nodes`,
+        {
+          headers: this.getHeaders(),
+          params: {
+            ids: idsParam,
+          },
+          timeout: 15000,
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      this.handleApiError(error);
+    }
+  }
+
+  async getLayerThumbnails(fileId: string, layerIds: string[]): Promise<{ [key: string]: string }> {
+    try {
+      if (!this.token) {
+        throw new Error('Access token is required');
+      }
+
+      if (!fileId || layerIds.length === 0) {
+        throw new Error('File ID and layer IDs are required');
+      }
+
+      const idsParam = layerIds.join(',');
+      const response: AxiosResponse<FigmaImageResponse> = await axios.get(
+        `${FIGMA_API_BASE}/images/${fileId}`,
+        {
+          headers: this.getHeaders(),
+          params: {
+            ids: idsParam,
+            format: 'png',
+            scale: 1,
+          },
+          timeout: 20000,
         }
       );
 
