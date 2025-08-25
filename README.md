@@ -7,6 +7,9 @@ A React web application that allows users to preview all pages from a Figma file
 - **Secure Token Input**: Password-protected input field for Figma access tokens
 - **File ID Extraction**: Supports both file IDs and full Figma URLs
 - **Real-time Page Preview**: Fetches and displays thumbnails for all pages in a Figma file
+- **Layer Viewing**: Click on any page to view all layers within that page with thumbnails
+- **Layer Details**: Shows layer names, types, dimensions, and visual properties
+- **Smart Navigation**: Seamless navigation between pages and layer views
 - **Responsive Design**: Works on desktop and mobile devices
 - **Error Handling**: Comprehensive error handling for API failures and invalid inputs
 - **Loading States**: Clear loading indicators during API operations
@@ -54,13 +57,16 @@ npm start
    - Paste the full Figma file URL (e.g., `https://www.figma.com/file/ABC123/My-Design`)
    - Enter just the file ID (e.g., `ABC123`)
 3. **Click "Connect & Preview Pages"**: The app will fetch and display all pages
+4. **View Page Layers**: Click on any page card to view detailed layer information
+5. **Navigate Back**: Use the back button to return to the pages view or main form
 
 ## API Endpoints Used
 
 The application uses the following Figma REST API endpoints:
 
-- `GET /v1/files/{file_id}` - Retrieves file information and page structure
-- `GET /v1/images/{file_id}` - Generates page thumbnails
+- `GET /v1/files/{file_id}` - Retrieves file information and page structure  
+- `GET /v1/images/{file_id}` - Generates page and layer thumbnails
+- `GET /v1/files/{file_id}/nodes?ids={node_ids}` - Fetches detailed page and layer information
 
 ## Security
 
