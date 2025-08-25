@@ -272,8 +272,16 @@ function App() {
   const fetchLayerThumbnails = async (fileId: string, layers: LayerWithThumbnail[]) => {
     const layerIds = layers.map(layer => layer.id);
     
+    console.log(`Attempting to fetch thumbnails for ${layerIds.length} layers`);
+    
     try {
       const thumbnails = await figmaApiService.getLayerThumbnails(fileId, layerIds);
+      
+      // Count successful and failed thumbnails
+      const successfulIds = Object.keys(thumbnails);
+      const failedIds = layerIds.filter(id => !thumbnails[id]);
+      
+      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
       
       setState(prev => ({
         ...prev,
@@ -302,8 +310,16 @@ function App() {
   const fetchFrameThumbnails = async (fileId: string, frames: FrameWithThumbnail[]) => {
     const frameIds = frames.map(frame => frame.id);
     
+    console.log(`Attempting to fetch thumbnails for ${frameIds.length} frames`);
+    
     try {
       const thumbnails = await figmaApiService.getFrameThumbnails(fileId, frameIds);
+      
+      // Count successful and failed thumbnails
+      const successfulIds = Object.keys(thumbnails);
+      const failedIds = frameIds.filter(id => !thumbnails[id]);
+      
+      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
       
       setState(prev => ({
         ...prev,

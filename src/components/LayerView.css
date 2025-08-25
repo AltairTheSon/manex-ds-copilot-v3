@@ -15,6 +15,51 @@
   flex-wrap: wrap;
 }
 
+/* Layer Type Filter Tabs */
+.layer-filters {
+  max-width: 1200px;
+  margin: 0 auto 30px;
+  padding: 0;
+}
+
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.filter-tab {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(5px);
+  white-space: nowrap;
+}
+
+.filter-tab:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.filter-tab.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #2c3e50;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 .back-button {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -346,6 +391,20 @@
   
   .page-info h1 {
     font-size: 24px;
+  }
+  
+  .layer-filters {
+    margin-bottom: 20px;
+  }
+  
+  .filter-tabs {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .filter-tab {
+    padding: 6px 12px;
+    font-size: 12px;
   }
   
   .layer-grid {

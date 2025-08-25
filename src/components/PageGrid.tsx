@@ -47,7 +47,7 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onViewLaye
                 </div>
               ) : page.error ? (
                 <div className="page-error">
-                  <div className="error-icon">⚠️</div>
+                  <div className="error-icon">!</div>
                   <span>Failed to load thumbnail</span>
                   <small>{page.error}</small>
                 </div>
@@ -64,7 +64,7 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onViewLaye
                   className="page-placeholder"
                   style={{ backgroundColor: formatBackgroundColor(page.backgroundColor) }}
                 >
-                  <div className="placeholder-icon">📄</div>
+                  <div className="placeholder-icon">○</div>
                   <span>No thumbnail available</span>
                 </div>
               )}
@@ -110,7 +110,7 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onViewLaye
 
       {pages.length === 0 && (
         <div className="empty-state">
-          <div className="empty-icon">📄</div>
+          <div className="empty-icon">○</div>
           <h3>No pages found</h3>
           <p>This Figma file doesn't seem to have any pages, or there was an issue loading them.</p>
         </div>

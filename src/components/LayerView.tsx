@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { LayerWithThumbnail } from '../types/figma';
 import './LayerView.css';
 
@@ -19,6 +19,8 @@ const LayerView: React.FC<LayerViewProps> = ({
   loading, 
   error 
 }) => {
+  const [activeFilter, setActiveFilter] = useState<string>('ALL');
+
   const formatLayerType = (type: string) => {
     return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -34,20 +36,37 @@ const LayerView: React.FC<LayerViewProps> = ({
 
   const getLayerIcon = (type: string) => {
     switch (type) {
-      case 'TEXT': return '📝';
-      case 'RECTANGLE': return '⬛';
-      case 'ELLIPSE': return '⭕';
-      case 'FRAME': return '🖼️';
-      case 'GROUP': return '📦';
-      case 'COMPONENT': return '🧩';
-      case 'INSTANCE': return '📋';
-      case 'VECTOR': return '✏️';
-      case 'LINE': return '📏';
-      case 'STAR': return '⭐';
-      case 'POLYGON': return '🔶';
-      default: return '🎨';
+      case 'TEXT': return 'T';
+      case 'RECTANGLE': return '▢';
+      case 'ELLIPSE': return '○';
+      case 'FRAME': return '▤';
+      case 'GROUP': return '▦';
+      case 'COMPONENT': return '◉';
+      case 'INSTANCE': return '◎';
+      case 'VECTOR': return '✓';
+      case 'LINE': return '—';
+      case 'STAR': return '★';
+      case 'POLYGON': return '▲';
+      default: return '●';
     }
   };
+
+  // Extract unique layer types and create filter options
+  const filterOptions = useMemo(() => {
+    const types = new Set<string>();
+    layers.forEach(layer => types.add(layer.type));
+    
+    const sortedTypes = Array.from(types).sort();
+    return ['ALL', ...sortedTypes];
+  }, [layers]);
+
+  // Filter layers based on active filter
+  const filteredLayers = useMemo(() => {
+    if (activeFilter === 'ALL') {
+      return layers;
+    }
+    return layers.filter(layer => layer.type === activeFilter);
+  }, [layers, activeFilter]);
 
   if (loading) {
     return (
@@ -86,7 +105,7 @@ const LayerView: React.FC<LayerViewProps> = ({
         </div>
         <div className="error-container">
           <div className="error-content">
-            <div className="error-icon">⚠️</div>
+            <div className="error-icon">!</div>
             <h2>Failed to load layers</h2>
             <p>{error}</p>
             <button onClick={onBack} className="retry-button">
@@ -110,8 +129,29 @@ const LayerView: React.FC<LayerViewProps> = ({
         </div>
       </div>
 
+      {/* Layer Type Filter Tabs */}
+      {filterOptions.length > 1 && (
+        <div className="layer-filters">
+          <div className="filter-tabs">
+            {filterOptions.map((filter) => (
+              <button
+                key={filter}
+                className={`filter-tab ${activeFilter === filter ? 'active' : ''}`}
+                onClick={() => setActiveFilter(filter)}
+              >
+                {filter === 'ALL' ? (
+                  <>All ({layers.length})</>
+                ) : (
+                  <>{formatLayerType(filter)} ({layers.filter(l => l.type === filter).length})</>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="layer-grid">
-        {layers.map((layer) => (
+        {filteredLayers.map((layer) => (
           <div key={layer.id} className="layer-card">
             <div className="layer-thumbnail-container">
               {layer.loading ? (
@@ -121,7 +161,7 @@ const LayerView: React.FC<LayerViewProps> = ({
                 </div>
               ) : layer.error ? (
                 <div className="layer-error">
-                  <div className="error-icon">⚠️</div>
+                  <div className="error-icon">!</div>
                   <span>Failed to load</span>
                 </div>
               ) : layer.thumbnailUrl ? (
@@ -154,10 +194,10 @@ const LayerView: React.FC<LayerViewProps> = ({
                   </span>
                 )}
                 {layer.visible === false && (
-                  <span className="layer-hidden">🙈 Hidden</span>
+                  <span className="layer-hidden">Hidden</span>
                 )}
                 {layer.locked && (
-                  <span className="layer-locked">🔒 Locked</span>
+                  <span className="layer-locked">Locked</span>
                 )}
               </div>
               {layer.children && layer.children.length > 0 && (
@@ -170,9 +210,17 @@ const LayerView: React.FC<LayerViewProps> = ({
         ))}
       </div>
 
+      {filteredLayers.length === 0 && layers.length > 0 && (
+        <div className="empty-state">
+          <div className="empty-icon">●</div>
+          <h3>No layers of this type found</h3>
+          <p>Try selecting a different filter or go back to "All" to see all layers.</p>
+        </div>
+      )}
+
       {layers.length === 0 && (
         <div className="empty-state">
-          <div className="empty-icon">🎨</div>
+          <div className="empty-icon">●</div>
           <h3>No layers found</h3>
           <p>This page doesn't seem to have any layers, or there was an issue loading them.</p>
         </div>
