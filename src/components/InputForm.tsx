@@ -99,7 +99,7 @@ const InputForm: React.FC<InputFormProps> = ({ onConnect, loading, error }) => {
               disabled={loading}
               aria-label={showToken ? "Hide token" : "Show token"}
             >
-              {showToken ? '👁️' : '🔒'}
+              {showToken ? 'Hide' : 'Show'}
             </button>
           </div>
           {validationErrors.token && (

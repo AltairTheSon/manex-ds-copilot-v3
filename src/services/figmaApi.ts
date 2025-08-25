@@ -133,7 +133,21 @@ class FigmaApiService {
         throw new Error('File ID and layer IDs are required');
       }
 
-      const idsParam = layerIds.join(',');
+      // Validate and filter node IDs
+      const validLayerIds = layerIds.filter(id => this.validateNodeId(id));
+      
+      if (validLayerIds.length === 0) {
+        console.warn('No valid layer IDs found for thumbnail generation');
+        return {};
+      }
+
+      if (validLayerIds.length !== layerIds.length) {
+        console.warn(`Filtered out ${layerIds.length - validLayerIds.length} invalid layer IDs`);
+      }
+
+      const idsParam = validLayerIds.join(',');
+      console.log(`Fetching thumbnails for ${validLayerIds.length} layer(s): ${idsParam}`);
+      
       const response: AxiosResponse<FigmaImageResponse> = await axios.get(
         `${FIGMA_API_BASE}/images/${fileId}`,
         {
@@ -148,11 +162,23 @@ class FigmaApiService {
       );
 
       if (response.data.err) {
+        console.error(`Figma API Error for layers: ${response.data.err}`);
         throw new Error(`Figma API Error: ${response.data.err}`);
       }
 
-      return response.data.images;
+      // Log which thumbnails were successfully generated
+      const images = response.data.images;
+      const successCount = Object.keys(images).length;
+      const failedIds = validLayerIds.filter(id => !images[id]);
+      
+      console.log(`Successfully generated ${successCount} layer thumbnails`);
+      if (failedIds.length > 0) {
+        console.warn(`Failed to generate thumbnails for layers: ${failedIds.join(', ')}`);
+      }
+
+      return images;
     } catch (error) {
+      console.error('Error in getLayerThumbnails:', error);
       this.handleApiError(error);
     }
   }
@@ -167,7 +193,21 @@ class FigmaApiService {
         throw new Error('File ID and frame IDs are required');
       }
 
-      const idsParam = frameIds.join(',');
+      // Validate and filter node IDs
+      const validFrameIds = frameIds.filter(id => this.validateNodeId(id));
+      
+      if (validFrameIds.length === 0) {
+        console.warn('No valid frame IDs found for thumbnail generation');
+        return {};
+      }
+
+      if (validFrameIds.length !== frameIds.length) {
+        console.warn(`Filtered out ${frameIds.length - validFrameIds.length} invalid frame IDs`);
+      }
+
+      const idsParam = validFrameIds.join(',');
+      console.log(`Fetching thumbnails for ${validFrameIds.length} frame(s): ${idsParam}`);
+
       const response: AxiosResponse<FigmaImageResponse> = await axios.get(
         `${FIGMA_API_BASE}/images/${fileId}`,
         {
@@ -182,11 +222,23 @@ class FigmaApiService {
       );
 
       if (response.data.err) {
+        console.error(`Figma API Error for frames: ${response.data.err}`);
         throw new Error(`Figma API Error: ${response.data.err}`);
       }
 
-      return response.data.images;
+      // Log which thumbnails were successfully generated
+      const images = response.data.images;
+      const successCount = Object.keys(images).length;
+      const failedIds = validFrameIds.filter(id => !images[id]);
+      
+      console.log(`Successfully generated ${successCount} frame thumbnails`);
+      if (failedIds.length > 0) {
+        console.warn(`Failed to generate thumbnails for frames: ${failedIds.join(', ')}`);
+      }
+
+      return images;
     } catch (error) {
+      console.error('Error in getFrameThumbnails:', error);
       this.handleApiError(error);
     }
   }
@@ -201,6 +253,18 @@ class FigmaApiService {
     // Figma file IDs are typically alphanumeric with some special characters
     const fileIdRegex = /^[a-zA-Z0-9]+$/;
     return fileIdRegex.test(fileId) && fileId.length > 10;
+  }
+
+  validateNodeId(nodeId: string): boolean {
+    // Figma node IDs are typically in format "123:456" or similar
+    // They should contain at least one colon and be alphanumeric with colons/hyphens
+    if (!nodeId || typeof nodeId !== 'string') {
+      return false;
+    }
+    
+    // Basic format validation - should contain colon and be reasonable length
+    const nodeIdRegex = /^[a-zA-Z0-9:-]+$/;
+    return nodeIdRegex.test(nodeId) && nodeId.includes(':') && nodeId.length > 2;
   }
 }
 

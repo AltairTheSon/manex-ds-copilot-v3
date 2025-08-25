@@ -65,7 +65,7 @@ const FrameView: React.FC<FrameViewProps> = ({
         </div>
         <div className="error-container">
           <div className="error-content">
-            <div className="error-icon">⚠️</div>
+            <div className="error-icon">!</div>
             <h2>Failed to load frames</h2>
             <p>{error}</p>
             <button onClick={onBack} className="retry-button">
@@ -100,7 +100,7 @@ const FrameView: React.FC<FrameViewProps> = ({
                 </div>
               ) : frame.error ? (
                 <div className="frame-error">
-                  <div className="error-icon">⚠️</div>
+                  <div className="error-icon">!</div>
                   <span>Failed to load</span>
                 </div>
               ) : frame.thumbnailUrl ? (
@@ -113,7 +113,7 @@ const FrameView: React.FC<FrameViewProps> = ({
                 />
               ) : (
                 <div className="frame-placeholder">
-                  <div className="placeholder-icon">🖼️</div>
+                  <div className="placeholder-icon">▤</div>
                   <span>No preview</span>
                 </div>
               )}
@@ -125,7 +125,7 @@ const FrameView: React.FC<FrameViewProps> = ({
               </h3>
               <div className="frame-meta">
                 <span className="frame-type">
-                  🖼️ Frame
+                  ▤ Frame
                 </span>
                 {formatDimensions(frame.absoluteBoundingBox) && (
                   <span className="frame-dimensions">
@@ -133,10 +133,10 @@ const FrameView: React.FC<FrameViewProps> = ({
                   </span>
                 )}
                 {frame.visible === false && (
-                  <span className="frame-hidden">🙈 Hidden</span>
+                  <span className="frame-hidden">Hidden</span>
                 )}
                 {frame.locked && (
-                  <span className="frame-locked">🔒 Locked</span>
+                  <span className="frame-locked">Locked</span>
                 )}
               </div>
               {frame.children && frame.children.length > 0 && (
@@ -151,7 +151,7 @@ const FrameView: React.FC<FrameViewProps> = ({
 
       {frames.length === 0 && (
         <div className="empty-state">
-          <div className="empty-icon">🖼️</div>
+          <div className="empty-icon">▤</div>
           <h3>No frames found</h3>
           <p>This page doesn't seem to have any frames, or there was an issue loading them.</p>
         </div>
