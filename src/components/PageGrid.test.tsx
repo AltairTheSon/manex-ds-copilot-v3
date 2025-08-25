@@ -24,7 +24,8 @@ const mockProps = {
   pages: mockPages,
   fileName: 'Test File',
   onBack: jest.fn(),
-  onPageClick: jest.fn()
+  onViewLayers: jest.fn(),
+  onViewFrames: jest.fn()
 };
 
 test('renders page grid with pages', () => {
@@ -41,15 +42,36 @@ test('renders page grid with pages', () => {
   expect(page2).toBeInTheDocument();
 });
 
-test('calls onPageClick when page card is clicked', () => {
+test('shows action buttons on hover and calls handlers', () => {
   render(<PageGrid {...mockProps} />);
   
   const pageCard = screen.getByText('Test Page 1').closest('.page-card');
   expect(pageCard).toBeInTheDocument();
   
   if (pageCard) {
-    fireEvent.click(pageCard);
-    expect(mockProps.onPageClick).toHaveBeenCalledWith(mockPages[0]);
+    // Check that overlay exists (even if not visible initially)
+    const overlay = pageCard.querySelector('.page-hover-overlay');
+    expect(overlay).toBeInTheDocument();
+    
+    // Check that action buttons exist within this specific page card
+    const viewLayersButton = pageCard.querySelector('.page-action-button.primary');
+    const viewFramesButton = pageCard.querySelector('.page-action-button:not(.primary)');
+    
+    expect(viewLayersButton).toBeInTheDocument();
+    expect(viewFramesButton).toBeInTheDocument();
+    expect(viewLayersButton?.textContent).toBe('View Layers');
+    expect(viewFramesButton?.textContent).toBe('View Frames');
+    
+    // Test button clicks
+    if (viewLayersButton) {
+      fireEvent.click(viewLayersButton);
+      expect(mockProps.onViewLayers).toHaveBeenCalledWith(mockPages[0]);
+    }
+    
+    if (viewFramesButton) {
+      fireEvent.click(viewFramesButton);
+      expect(mockProps.onViewFrames).toHaveBeenCalledWith(mockPages[0]);
+    }
   }
 });
 

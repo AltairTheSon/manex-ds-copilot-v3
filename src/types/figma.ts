@@ -94,8 +94,20 @@ export interface LayerWithThumbnail extends FigmaNode {
   error?: string;
 }
 
+export interface FrameWithThumbnail extends FigmaNode {
+  thumbnailUrl?: string;
+  loading?: boolean;
+  error?: string;
+}
+
 export interface PageLayersData {
   pageId: string;
   pageName: string;
   layers: LayerWithThumbnail[];
+}
+
+export interface PageFramesData {
+  pageId: string;
+  pageName: string;
+  frames: FrameWithThumbnail[];
 }

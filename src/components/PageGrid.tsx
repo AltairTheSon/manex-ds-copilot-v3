@@ -6,10 +6,11 @@ interface PageGridProps {
   pages: PageWithThumbnail[];
   fileName: string;
   onBack: () => void;
-  onPageClick: (page: PageWithThumbnail) => void;
+  onViewLayers: (page: PageWithThumbnail) => void;
+  onViewFrames: (page: PageWithThumbnail) => void;
 }
 
-const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onPageClick }) => {
+const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onViewLayers, onViewFrames }) => {
   const formatBackgroundColor = (backgroundColor?: { r: number; g: number; b: number; a: number }) => {
     if (!backgroundColor) return '#ffffff';
     const { r, g, b, a } = backgroundColor;
@@ -37,8 +38,6 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onPageClic
           <div 
             key={page.id} 
             className="page-card"
-            onClick={() => onPageClick(page)}
-            style={{ cursor: 'pointer' }}
           >
             <div className="page-thumbnail-container">
               {page.loading ? (
@@ -69,6 +68,27 @@ const PageGrid: React.FC<PageGridProps> = ({ pages, fileName, onBack, onPageClic
                   <span>No thumbnail available</span>
                 </div>
               )}
+              
+              <div className="page-hover-overlay">
+                <button 
+                  className="page-action-button primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewLayers(page);
+                  }}
+                >
+                  View Layers
+                </button>
+                <button 
+                  className="page-action-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewFrames(page);
+                  }}
+                >
+                  View Frames
+                </button>
+              </div>
             </div>
             
             <div className="page-info">

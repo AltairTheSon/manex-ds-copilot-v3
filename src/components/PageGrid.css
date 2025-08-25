@@ -68,27 +68,54 @@
   transform: translateY(0);
 }
 
-.page-card::after {
-  content: "Click to view layers";
+.page-hover-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  font-weight: 500;
+  gap: 1rem;
   opacity: 0;
   transition: opacity 0.2s ease;
   pointer-events: none;
 }
 
-.page-card:hover::after {
+.page-card:hover .page-hover-overlay {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.page-action-button {
+  background: white;
+  color: #333;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.page-action-button:hover {
+  background: #f8f9fa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.page-action-button.primary {
+  background: #0d7377;
+  color: white;
+}
+
+.page-action-button.primary:hover {
+  background: #0a5a5d;
 }
 
 .page-thumbnail-container {
