@@ -275,21 +275,26 @@ function App() {
     console.log(`Attempting to fetch thumbnails for ${layerIds.length} layers`);
     
     try {
-      const thumbnails = await figmaApiService.getLayerThumbnails(fileId, layerIds);
+      const result = await figmaApiService.getLayerThumbnails(fileId, layerIds);
       
       // Count successful and failed thumbnails
-      const successfulIds = Object.keys(thumbnails);
-      const failedIds = layerIds.filter(id => !thumbnails[id]);
+      const successfulIds = Object.keys(result.images);
+      const failedIds = Object.keys(result.errors);
+      const retriedIds = result.retried;
       
-      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
+      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed, ${retriedIds.length} retried`);
+      
+      if (failedIds.length > 0) {
+        console.warn('Failed layer thumbnail details:', result.errors);
+      }
       
       setState(prev => ({
         ...prev,
         layers: prev.layers.map(layer => ({
           ...layer,
           loading: false,
-          thumbnailUrl: thumbnails[layer.id] || undefined,
-          error: thumbnails[layer.id] ? undefined : 'Thumbnail not available',
+          thumbnailUrl: result.images[layer.id] || undefined,
+          error: result.errors[layer.id] || (result.images[layer.id] ? undefined : 'Thumbnail not available'),
         })),
       }));
     } catch (error) {
@@ -313,21 +318,26 @@ function App() {
     console.log(`Attempting to fetch thumbnails for ${frameIds.length} frames`);
     
     try {
-      const thumbnails = await figmaApiService.getFrameThumbnails(fileId, frameIds);
+      const result = await figmaApiService.getFrameThumbnails(fileId, frameIds);
       
       // Count successful and failed thumbnails
-      const successfulIds = Object.keys(thumbnails);
-      const failedIds = frameIds.filter(id => !thumbnails[id]);
+      const successfulIds = Object.keys(result.images);
+      const failedIds = Object.keys(result.errors);
+      const retriedIds = result.retried;
       
-      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
+      console.log(`Thumbnail fetch results: ${successfulIds.length} successful, ${failedIds.length} failed, ${retriedIds.length} retried`);
+      
+      if (failedIds.length > 0) {
+        console.warn('Failed frame thumbnail details:', result.errors);
+      }
       
       setState(prev => ({
         ...prev,
         frames: prev.frames.map(frame => ({
           ...frame,
           loading: false,
-          thumbnailUrl: thumbnails[frame.id] || undefined,
-          error: thumbnails[frame.id] ? undefined : 'Thumbnail not available',
+          thumbnailUrl: result.images[frame.id] || undefined,
+          error: result.errors[frame.id] || (result.images[frame.id] ? undefined : 'Thumbnail not available'),
         })),
       }));
     } catch (error) {

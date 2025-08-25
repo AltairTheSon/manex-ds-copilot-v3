@@ -111,3 +111,31 @@ export interface PageFramesData {
   pageName: string;
   frames: FrameWithThumbnail[];
 }
+
+// New interfaces for handling partial thumbnail results
+export interface ThumbnailResult {
+  images: { [key: string]: string };
+  errors: { [key: string]: string };
+  retried: string[];
+}
+
+export interface NodeError {
+  nodeId: string;
+  error: string;
+  retryCount?: number;
+}
+
+// Frame filtering interfaces
+export interface FrameFilter {
+  id: string;
+  label: string;
+  count: number;
+  predicate: (frame: FrameWithThumbnail) => boolean;
+}
+
+export interface FrameFilterContext {
+  allFrames: FrameWithThumbnail[];
+  filteredFrames: FrameWithThumbnail[];
+  activeFilter: string;
+  availableFilters: FrameFilter[];
+}
