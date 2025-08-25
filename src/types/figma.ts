@@ -124,3 +124,18 @@ export interface NodeError {
   error: string;
   retryCount?: number;
 }
+
+// Frame filtering interfaces
+export interface FrameFilter {
+  id: string;
+  label: string;
+  count: number;
+  predicate: (frame: FrameWithThumbnail) => boolean;
+}
+
+export interface FrameFilterContext {
+  allFrames: FrameWithThumbnail[];
+  filteredFrames: FrameWithThumbnail[];
+  activeFilter: string;
+  availableFilters: FrameFilter[];
+}

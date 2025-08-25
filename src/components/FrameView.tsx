@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { FrameWithThumbnail } from '../types/figma';
+import { generateFrameFilters } from '../utils/frameFilters';
 import './FrameView.css';
 
 interface FrameViewProps {
@@ -19,6 +20,24 @@ const FrameView: React.FC<FrameViewProps> = ({
   loading, 
   error 
 }) => {
+  const [activeFilter, setActiveFilter] = useState('all');
+
+  // Generate filters based on frame data
+  const filters = useMemo(() => {
+    if (!frames || frames.length === 0) return [];
+    return generateFrameFilters(frames);
+  }, [frames]);
+
+  // Filter frames based on active filter
+  const filteredFrames = useMemo(() => {
+    if (!frames || frames.length === 0) return [];
+    
+    const filter = filters.find(f => f.id === activeFilter);
+    if (!filter) return frames;
+    
+    return frames.filter(filter.predicate);
+  }, [frames, filters, activeFilter]);
+
   const formatDimensions = (box?: { x: number; y: number; width: number; height: number }) => {
     if (!box) return null;
     return `${Math.round(box.width)} × ${Math.round(box.height)}`;
@@ -89,8 +108,26 @@ const FrameView: React.FC<FrameViewProps> = ({
         </div>
       </div>
 
+      {/* Filter Tabs */}
+      {filters.length > 1 && (
+        <div className="frame-filters-container">
+          <div className="frame-filters">
+            {filters.map((filter) => (
+              <button
+                key={filter.id}
+                className={`filter-tab ${activeFilter === filter.id ? 'active' : ''}`}
+                onClick={() => setActiveFilter(filter.id)}
+              >
+                {filter.label}
+                <span className="filter-count">({filter.count})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="frame-grid">
-        {frames.map((frame) => (
+        {filteredFrames.map((frame) => (
           <div key={frame.id} className="frame-card">
             <div className="frame-thumbnail-container">
               {frame.loading ? (
@@ -148,6 +185,14 @@ const FrameView: React.FC<FrameViewProps> = ({
           </div>
         ))}
       </div>
+
+      {filteredFrames.length === 0 && frames.length > 0 && (
+        <div className="empty-state">
+          <div className="empty-icon">▤</div>
+          <h3>No frames match filter</h3>
+          <p>Try selecting a different filter or return to "All" to see all frames.</p>
+        </div>
+      )}
 
       {frames.length === 0 && (
         <div className="empty-state">
