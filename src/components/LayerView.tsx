@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LayerWithThumbnail } from '../types/figma';
 import './LayerView.css';
 
@@ -20,6 +20,11 @@ const LayerView: React.FC<LayerViewProps> = ({
   error 
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
+
+  // Reset filter when layers change
+  useEffect(() => {
+    setActiveFilter('ALL');
+  }, [layers]);
 
   const formatLayerType = (type: string) => {
     return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
@@ -53,8 +58,14 @@ const LayerView: React.FC<LayerViewProps> = ({
 
   // Extract unique layer types and create filter options
   const filterOptions = useMemo(() => {
+    if (!layers || layers.length === 0) return ['ALL'];
+    
     const types = new Set<string>();
-    layers.forEach(layer => types.add(layer.type));
+    layers.forEach(layer => {
+      if (layer.type) {
+        types.add(layer.type);
+      }
+    });
     
     const sortedTypes = Array.from(types).sort();
     return ['ALL', ...sortedTypes];
@@ -62,11 +73,18 @@ const LayerView: React.FC<LayerViewProps> = ({
 
   // Filter layers based on active filter
   const filteredLayers = useMemo(() => {
+    if (!layers || layers.length === 0) return [];
+    
+    // Validate that activeFilter is still valid
+    if (!filterOptions.includes(activeFilter)) {
+      return layers;
+    }
+    
     if (activeFilter === 'ALL') {
       return layers;
     }
     return layers.filter(layer => layer.type === activeFilter);
-  }, [layers, activeFilter]);
+  }, [layers, activeFilter, filterOptions]);
 
   if (loading) {
     return (
@@ -161,8 +179,9 @@ const LayerView: React.FC<LayerViewProps> = ({
                 </div>
               ) : layer.error ? (
                 <div className="layer-error">
-                  <div className="error-icon">!</div>
-                  <span>Failed to load</span>
+                  <div className="placeholder-icon">{getLayerIcon(layer.type)}</div>
+                  <span>Preview unavailable</span>
+                  <small>{layer.error}</small>
                 </div>
               ) : layer.thumbnailUrl ? (
                 <img

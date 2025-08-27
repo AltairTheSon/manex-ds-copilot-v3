@@ -174,17 +174,28 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #dc3545;
+  color: #6c757d;
   height: 100%;
+  padding: 16px;
+  text-align: center;
 }
 
-.layer-error .error-icon {
+.layer-error .placeholder-icon {
   font-size: 32px;
+  opacity: 0.6;
 }
 
 .layer-error span {
   font-size: 14px;
   font-weight: 500;
+}
+
+.layer-error small {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 4px;
+  max-width: 100%;
+  word-break: break-word;
 }
 
 .layer-info {

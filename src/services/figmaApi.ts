@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import { FigmaFile, FigmaImageResponse, FigmaNodesResponse, ThumbnailResult } from '../types/figma';
+import { ApiDebugger, validateNodeIds, formatApiError } from '../utils/apiDebugger';
 
 const FIGMA_API_BASE = 'https://api.figma.com/v1';
 
@@ -132,15 +133,10 @@ class FigmaApiService {
       throw new Error('File ID and layer IDs are required');
     }
 
-    // Validate and filter node IDs
-    const validationResults = layerIds.map(id => ({
-      id,
-      valid: this.validateNodeId(id),
-      error: this.validateNodeId(id) ? null : `Invalid node ID format: ${id}`
-    }));
+    ApiDebugger.logRequest('layer-thumbnails', { fileId, layerCount: layerIds.length, layerIds });
 
-    const validLayerIds = validationResults.filter(r => r.valid).map(r => r.id);
-    const invalidIds = validationResults.filter(r => !r.valid);
+    // Validate and filter node IDs using the utility
+    const validation = validateNodeIds(layerIds);
     
     const result: ThumbnailResult = {
       images: {},
@@ -149,21 +145,29 @@ class FigmaApiService {
     };
 
     // Add validation errors
-    invalidIds.forEach(invalid => {
-      result.errors[invalid.id] = invalid.error || 'Invalid node ID';
+    validation.invalid.forEach(invalid => {
+      result.errors[invalid.id] = `Invalid node ID: ${invalid.reason}`;
+      ApiDebugger.logError('node-validation', { nodeId: invalid.id, reason: invalid.reason });
     });
 
-    if (validLayerIds.length === 0) {
+    if (validation.valid.length === 0) {
       console.warn('No valid layer IDs found for thumbnail generation');
+      ApiDebugger.logResponse('layer-thumbnails', false, { reason: 'No valid IDs', invalidCount: validation.invalid.length });
       return result;
     }
 
-    if (validLayerIds.length !== layerIds.length) {
-      console.warn(`Filtered out ${layerIds.length - validLayerIds.length} invalid layer IDs`);
+    if (validation.valid.length !== layerIds.length) {
+      console.warn(`Filtered out ${layerIds.length - validation.valid.length} invalid layer IDs`);
     }
 
     // Try to get thumbnails for valid IDs
-    await this.fetchThumbnailsBatch(fileId, validLayerIds, result, 'layers');
+    await this.fetchThumbnailsBatch(fileId, validation.valid, result, 'layers');
+    
+    ApiDebugger.logResponse('layer-thumbnails', true, {
+      successCount: Object.keys(result.images).length,
+      errorCount: Object.keys(result.errors).length,
+      retryCount: result.retried.length
+    });
     
     return result;
   }
@@ -177,15 +181,10 @@ class FigmaApiService {
       throw new Error('File ID and frame IDs are required');
     }
 
-    // Validate and filter node IDs
-    const validationResults = frameIds.map(id => ({
-      id,
-      valid: this.validateNodeId(id),
-      error: this.validateNodeId(id) ? null : `Invalid node ID format: ${id}`
-    }));
+    ApiDebugger.logRequest('frame-thumbnails', { fileId, frameCount: frameIds.length, frameIds });
 
-    const validFrameIds = validationResults.filter(r => r.valid).map(r => r.id);
-    const invalidIds = validationResults.filter(r => !r.valid);
+    // Validate and filter node IDs using the utility
+    const validation = validateNodeIds(frameIds);
     
     const result: ThumbnailResult = {
       images: {},
@@ -194,21 +193,29 @@ class FigmaApiService {
     };
 
     // Add validation errors
-    invalidIds.forEach(invalid => {
-      result.errors[invalid.id] = invalid.error || 'Invalid node ID';
+    validation.invalid.forEach(invalid => {
+      result.errors[invalid.id] = `Invalid node ID: ${invalid.reason}`;
+      ApiDebugger.logError('node-validation', { nodeId: invalid.id, reason: invalid.reason });
     });
 
-    if (validFrameIds.length === 0) {
+    if (validation.valid.length === 0) {
       console.warn('No valid frame IDs found for thumbnail generation');
+      ApiDebugger.logResponse('frame-thumbnails', false, { reason: 'No valid IDs', invalidCount: validation.invalid.length });
       return result;
     }
 
-    if (validFrameIds.length !== frameIds.length) {
-      console.warn(`Filtered out ${frameIds.length - validFrameIds.length} invalid frame IDs`);
+    if (validation.valid.length !== frameIds.length) {
+      console.warn(`Filtered out ${frameIds.length - validation.valid.length} invalid frame IDs`);
     }
 
     // Try to get thumbnails for valid IDs
-    await this.fetchThumbnailsBatch(fileId, validFrameIds, result, 'frames');
+    await this.fetchThumbnailsBatch(fileId, validation.valid, result, 'frames');
+    
+    ApiDebugger.logResponse('frame-thumbnails', true, {
+      successCount: Object.keys(result.images).length,
+      errorCount: Object.keys(result.errors).length,
+      retryCount: result.retried.length
+    });
     
     return result;
   }
@@ -295,6 +302,20 @@ class FigmaApiService {
           });
 
           console.log(`Batch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
+          
+          // Log detailed information about failed IDs for debugging
+          if (failedIds.length > 0) {
+            console.warn(`Failed thumbnail generation for ${type}:`, {
+              fileId,
+              batchSize: batch.length,
+              failedIds,
+              requestParams: {
+                ids: idsParam,
+                format: 'png',
+                scale: 1
+              }
+            });
+          }
 
           // Handle failed IDs in this batch
           if (failedIds.length > 0 && retryCount < maxRetries) {
@@ -306,12 +327,17 @@ class FigmaApiService {
           } else if (failedIds.length > 0) {
             // Mark as permanently failed after max retries
             failedIds.forEach(id => {
-              result.errors[id] = `Failed to generate thumbnail after ${maxRetries + 1} attempts`;
+              result.errors[id] = `No thumbnail available (${maxRetries + 1} attempts)`;
             });
           }
 
         } catch (batchError) {
-          console.error(`Error processing batch of ${type}:`, batchError);
+          console.error(`Error processing ${type} batch:`, {
+            batchSize: batch.length,
+            nodeIds: batch,
+            error: batchError,
+            retryCount
+          });
           
           // If this is a network/timeout error and we haven't exceeded retries, try individual requests
           if (retryCount < maxRetries && this.isRetryableError(batchError)) {
@@ -373,7 +399,11 @@ class FigmaApiService {
         await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.error(`Failed individual request for ${type} ${nodeId}:`, error);
+        console.error(`Failed individual request for ${type} ${nodeId}:`, {
+          nodeId,
+          error: error,
+          retryCount
+        });
         result.errors[nodeId] = this.getErrorMessage(error);
       }
     }
@@ -392,15 +422,7 @@ class FigmaApiService {
   }
 
   private getErrorMessage(error: any): string {
-    if (error.response) {
-      const status = error.response.status;
-      const message = error.response.data?.err || error.response.data?.message || 'Unknown error';
-      return `HTTP ${status}: ${message}`;
-    } else if (error.request) {
-      return 'Network error: Unable to reach Figma API';
-    } else {
-      return `Request error: ${error.message || 'Unknown error'}`;
-    }
+    return formatApiError(error);
   }
 }
 
