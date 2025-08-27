@@ -1,0 +1,52 @@
+{
+  "protocol": {
+    "version": "1.0.0"
+  },
+  "client": {
+    "name": "figma-ds-copilot",
+    "version": "1.0.0"
+  },
+  "transport": {
+    "type": "http",
+    "defaultTimeout": 30000,
+    "retryAttempts": 3,
+    "retryDelay": 1000
+  },
+  "servers": {
+    "figma": {
+      "url": "http://localhost:3001/mcp",
+      "capabilities": [
+        "tools",
+        "resources"
+      ],
+      "tools": [
+        "get_file",
+        "get_comments",
+        "get_versions",
+        "get_components",
+        "get_styles",
+        "get_user",
+        "get_images",
+        "get_nodes"
+      ],
+      "authentication": {
+        "type": "bearer",
+        "required": true
+      },
+      "rateLimit": {
+        "requestsPerSecond": 10,
+        "burstSize": 20
+      }
+    }
+  },
+  "connection": {
+    "healthCheckInterval": 30000,
+    "reconnectAttempts": 5,
+    "reconnectDelay": 2000,
+    "pingInterval": 15000
+  },
+  "logging": {
+    "level": "info",
+    "enableDebug": false
+  }
+}

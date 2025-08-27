@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import { FigmaMcpClient } from './mcpClient';
+import { configManager } from '../utils/configManager';
 import { 
   ConnectionConfig, 
   ComprehensiveFigmaData,
@@ -43,10 +44,21 @@ export class ComprehensiveFigmaApiService {
   }
 
   private setupMcpClient() {
-    // Configure MCP client for browser environment
+    // Configure MCP client with configuration manager
+    const envConfig = configManager.getMcpConfig();
+    
     this.mcpClient = new FigmaMcpClient({
-      timeout: 30000
+      ...envConfig,
+      timeout: 30000,  // Override with specific timeout for API calls
+      retryAttempts: 3,
+      retryDelay: 1000,
+      enableHealthCheck: true,
+      enableReconnect: true,
+      logLevel: 'info'
     });
+
+    // Log configuration summary on setup
+    configManager.logConfigSummary();
   }
 
   async setConnectionConfig(config: ConnectionConfig): Promise<void> {
@@ -54,10 +66,34 @@ export class ComprehensiveFigmaApiService {
     
     if (config.method === 'mcp' && this.mcpClient && !this.mcpClient.isClientConnected()) {
       try {
+        // Update MCP client configuration if serverUrl is provided
+        if (config.mcpConfig?.serverUrl) {
+          // Create new MCP client with updated configuration
+          this.mcpClient = new FigmaMcpClient({
+            serverUrl: config.mcpConfig.serverUrl,
+            timeout: config.mcpConfig.timeout || 30000,
+            retryAttempts: 3,
+            retryDelay: 1000,
+            enableHealthCheck: true,
+            enableReconnect: true,
+            logLevel: 'info'
+          });
+        }
+        
         await this.mcpClient.connect();
+        
+        // Verify connection and available tools
+        const connectionState = this.mcpClient.getConnectionState();
+        if (connectionState.status !== 'connected') {
+          throw new Error(`MCP client connection failed: ${connectionState.lastError?.message || 'Unknown error'}`);
+        }
+        
+        const availableTools = await this.mcpClient.listTools();
+        console.log('MCP client connected successfully. Available tools:', availableTools);
+        
       } catch (error) {
         console.error('Failed to connect to MCP server:', error);
-        throw new Error('MCP server connection failed. Please ensure the server is available.');
+        throw new Error(`MCP server connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   }
@@ -116,8 +152,19 @@ export class ComprehensiveFigmaApiService {
   }
 
   private async makeApiCallViaMcp<T>(endpoint: string, params?: any): Promise<T> {
-    if (!this.mcpClient || !this.connectionConfig.token) {
-      throw new Error('MCP client not configured properly');
+    if (!this.mcpClient) {
+      throw new Error('MCP client is not initialized. Please check your MCP configuration.');
+    }
+
+    if (!this.connectionConfig.token) {
+      throw new Error('Access token is required for MCP API calls.');
+    }
+
+    // Check connection state
+    const connectionState = this.mcpClient.getConnectionState();
+    if (connectionState.status !== 'connected') {
+      const errorDetails = connectionState.lastError ? ` - ${connectionState.lastError.message}` : '';
+      throw new Error(`MCP client not connected: ${connectionState.status}${errorDetails}. Please check your MCP server configuration.`);
     }
 
     try {
@@ -128,30 +175,77 @@ export class ComprehensiveFigmaApiService {
         token: this.connectionConfig.token
       };
 
+      // Add file_id parameter for endpoints that need it
+      if (endpoint.includes('/files/')) {
+        const fileIdMatch = endpoint.match(/\/files\/([^/]+)/);
+        if (fileIdMatch && !args.file_id) {
+          args.file_id = fileIdMatch[1];
+        }
+      }
+
+      console.log(`Making MCP tool call: ${toolName}`, { endpoint, args: Object.keys(args) });
+
       const result = await this.mcpClient.callTool(toolName, args);
       
-      // Check if this is a simulation response
-      if (result.content && result.content[0] && result.content[0].text) {
-        const responseData = JSON.parse(result.content[0].text);
-        if (responseData.error && responseData.error.includes('simulation mode')) {
-          console.warn('MCP simulation mode detected, falling back to direct API');
-          // Fall back to direct API call
-          return this.makeApiCallDirect<T>(endpoint, params);
-        }
+      // Handle MCP response
+      if (result.isError) {
+        throw new Error(result.errorMessage || 'MCP tool execution failed');
+      }
+
+      if (result.content && result.content.length > 0) {
+        const content = result.content[0];
         
-        const cacheKey = `${endpoint}-${JSON.stringify(params)}`;
-        this.setCache(cacheKey, responseData);
-        return responseData;
+        if (content.type === 'text' && content.text) {
+          try {
+            const responseData = JSON.parse(content.text);
+            
+            // Check for Figma API errors in the response
+            if (responseData.error) {
+              throw new Error(`Figma API error via MCP: ${responseData.error}`);
+            }
+            
+            // Cache successful response
+            const cacheKey = `${endpoint}-${JSON.stringify(params)}`;
+            this.setCache(cacheKey, responseData);
+            
+            console.log(`MCP tool call successful: ${toolName}`);
+            return responseData;
+          } catch (parseError) {
+            console.error('Failed to parse MCP response:', parseError);
+            throw new Error(`Invalid JSON response from MCP tool: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          }
+        } else if (content.data) {
+          // Handle binary/structured data response
+          const cacheKey = `${endpoint}-${JSON.stringify(params)}`;
+          this.setCache(cacheKey, content.data);
+          return content.data;
+        }
       }
       
-      // If no proper response, fall back to direct API
-      console.warn('Invalid MCP response, falling back to direct API');
-      return this.makeApiCallDirect<T>(endpoint, params);
+      throw new Error('No valid content in MCP response. The MCP server may not be configured correctly for Figma API calls.');
       
     } catch (error) {
-      console.error('MCP API call failed, falling back to direct API:', error);
-      // Fall back to direct API call
-      return this.makeApiCallDirect<T>(endpoint, params);
+      console.error(`MCP API call failed for ${endpoint}:`, error);
+      
+      // Log detailed error information
+      ApiDebugger.logError(endpoint, error instanceof Error ? error.message : String(error));
+
+      // Provide specific error messages based on error type
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          throw new Error('Failed to connect to MCP server. Please verify the server URL and ensure the MCP server is running.');
+        } else if (error.message.includes('timeout')) {
+          throw new Error('MCP server request timed out. The server may be overloaded or unreachable.');
+        } else if (error.message.includes('HTTP 404')) {
+          throw new Error('MCP tool not found on server. Please ensure your MCP server supports Figma API tools.');
+        } else if (error.message.includes('HTTP 401') || error.message.includes('HTTP 403')) {
+          throw new Error('Authentication failed with MCP server. Please check your Figma token and MCP server configuration.');
+        } else if (error.message.includes('HTTP 5')) {
+          throw new Error('MCP server internal error. Please check the MCP server logs.');
+        }
+      }
+
+      throw new Error(`MCP tool call failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -599,6 +693,91 @@ export class ComprehensiveFigmaApiService {
       await this.mcpClient.disconnect();
     }
     this.cache.clear();
+  }
+
+  // MCP status and diagnostic methods
+  getMcpConnectionStatus(): { 
+    isConnected: boolean; 
+    status: string; 
+    serverUrl?: string; 
+    lastError?: string;
+    availableTools?: string[];
+  } {
+    if (!this.mcpClient) {
+      return { 
+        isConnected: false, 
+        status: 'not_initialized',
+        serverUrl: configManager.getMcpConfig().serverUrl
+      };
+    }
+
+    const connectionState = this.mcpClient.getConnectionState();
+    return {
+      isConnected: this.mcpClient.isClientConnected(),
+      status: connectionState.status,
+      serverUrl: configManager.getMcpConfig().serverUrl,
+      lastError: connectionState.lastError?.message,
+      availableTools: connectionState.availableTools
+    };
+  }
+
+  async testMcpConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    if (!configManager.isMcpEnabled()) {
+      return {
+        success: false,
+        message: 'MCP is disabled in configuration'
+      };
+    }
+
+    const validation = configManager.validateMcpConfig();
+    if (!validation.isValid) {
+      return {
+        success: false,
+        message: 'MCP configuration is invalid',
+        details: validation.errors
+      };
+    }
+
+    try {
+      if (this.mcpClient && !this.mcpClient.isClientConnected()) {
+        await this.mcpClient.connect();
+      }
+
+      const status = this.getMcpConnectionStatus();
+      if (status.isConnected) {
+        return {
+          success: true,
+          message: 'MCP connection successful',
+          details: status
+        };
+      } else {
+        return {
+          success: false,
+          message: `MCP connection failed: ${status.status}`,
+          details: status
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: `MCP connection test failed: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  getServiceDiagnostics(): {
+    mcp: any;
+    configuration: any;
+    cacheStats: any;
+  } {
+    return {
+      mcp: this.getMcpConnectionStatus(),
+      configuration: configManager.getConfigSummary(),
+      cacheStats: {
+        size: this.cache.size,
+        timeout: this.cacheTimeout
+      }
+    };
   }
 }
 

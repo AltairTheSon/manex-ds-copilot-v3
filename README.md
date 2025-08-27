@@ -1,6 +1,6 @@
 # Figma Pages Preview Application
 
-A React web application that allows users to preview all pages from a Figma file using the Figma REST API.
+A React web application that allows users to preview all pages from a Figma file using the Figma REST API with optional MCP (Model Context Protocol) integration.
 
 ## Features
 
@@ -13,6 +13,25 @@ A React web application that allows users to preview all pages from a Figma file
 - **Responsive Design**: Works on desktop and mobile devices
 - **Error Handling**: Comprehensive error handling for API failures and invalid inputs
 - **Loading States**: Clear loading indicators during API operations
+- **MCP Integration**: Optional Model Context Protocol support for enterprise environments
+- **Multiple Connection Methods**: Direct API access or MCP server routing
+
+## Connection Methods
+
+### Direct API Access (Default)
+Connect directly to the Figma API using your access token.
+
+### MCP Server Integration
+Route API calls through an MCP (Model Context Protocol) server for enhanced security, monitoring, and enterprise features.
+
+**Benefits of MCP Integration:**
+- Centralized API management
+- Enhanced security and authentication
+- Request monitoring and logging
+- Rate limiting and caching
+- Audit trails
+
+📖 **[View MCP Setup Guide](docs/MCP_SETUP.md)** for detailed configuration instructions.
 
 ## Getting Started
 
