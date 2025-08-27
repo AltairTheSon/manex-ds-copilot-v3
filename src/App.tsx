@@ -1,52 +1,125 @@
 import React, { useState } from 'react';
 import InputForm from './components/InputForm';
+import EnhancedInputForm from './components/EnhancedInputForm';
 import PageGrid from './components/PageGrid';
 import LayerView from './components/LayerView';
 import FrameView from './components/FrameView';
+import ComprehensiveDataView from './components/ComprehensiveDataView';
 import { figmaApiService } from './services/figmaApi';
+import { comprehensiveFigmaApiService } from './services/comprehensiveFigmaApi';
 import { FigmaFile, PageWithThumbnail, LayerWithThumbnail, FrameWithThumbnail, FigmaNode } from './types/figma';
+import { ConnectionConfig, ComprehensiveFigmaData, ApiProgress } from './types/figmaExtended';
 import './App.css';
 
 interface AppState {
-  phase: 'input' | 'loading' | 'preview' | 'layers' | 'frames';
-  token: string;
+  phase: 'input' | 'loading' | 'preview' | 'layers' | 'frames' | 'comprehensive';
+  connectionConfig: ConnectionConfig | null;
   fileId: string;
   file: FigmaFile | null;
+  comprehensiveData: ComprehensiveFigmaData | null;
   pages: PageWithThumbnail[];
   currentPage: PageWithThumbnail | null;
   layers: LayerWithThumbnail[];
   frames: FrameWithThumbnail[];
   layersLoading: boolean;
   framesLoading: boolean;
+  comprehensiveLoading: boolean;
+  apiProgress: ApiProgress;
   error: string | null;
+  useEnhanced: boolean;
 }
 
 function App() {
   const [state, setState] = useState<AppState>({
     phase: 'input',
-    token: '',
+    connectionConfig: null,
     fileId: '',
     file: null,
+    comprehensiveData: null,
     pages: [],
     currentPage: null,
     layers: [],
     frames: [],
     layersLoading: false,
     framesLoading: false,
+    comprehensiveLoading: false,
+    apiProgress: {
+      file: false,
+      comments: false,
+      versions: false,
+      components: false,
+      styles: false,
+      user: false,
+    },
     error: null,
+    useEnhanced: true, // Default to enhanced mode
   });
 
+  // Enhanced connection handler for comprehensive data retrieval
+  const handleEnhancedConnect = async (config: ConnectionConfig, fileId: string) => {
+    setState(prev => ({
+      ...prev,
+      phase: 'loading',
+      connectionConfig: config,
+      fileId,
+      error: null,
+      comprehensiveLoading: true,
+      apiProgress: {
+        file: false,
+        comments: false,
+        versions: false,
+        components: false,
+        styles: false,
+        user: false,
+      },
+    }));
+
+    try {
+      // Set up the connection configuration
+      await comprehensiveFigmaApiService.setConnectionConfig(config);
+
+      // Fetch all comprehensive data with progress tracking
+      const comprehensiveData = await comprehensiveFigmaApiService.getAllFigmaData(
+        fileId,
+        (progress: ApiProgress) => {
+          setState(prev => ({
+            ...prev,
+            apiProgress: progress,
+          }));
+        }
+      );
+
+      setState(prev => ({
+        ...prev,
+        comprehensiveData,
+        file: comprehensiveData.file.info,
+        phase: 'comprehensive',
+        comprehensiveLoading: false,
+      }));
+
+    } catch (error) {
+      console.error('Error connecting to Figma (Enhanced):', error);
+      setState(prev => ({
+        ...prev,
+        phase: 'input',
+        comprehensiveLoading: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
+      }));
+    }
+  };
+
+  // Legacy connection handler for backward compatibility
   const handleConnect = async (token: string, fileId: string) => {
     setState(prev => ({
       ...prev,
       phase: 'loading',
-      token,
+      connectionConfig: { method: 'token', token },
       fileId,
       error: null,
     }));
 
     try {
-      // Set the token in the API service
+      // Set the token in the legacy API service
       figmaApiService.setToken(token);
 
       // Fetch file information
@@ -115,9 +188,32 @@ function App() {
       ...prev,
       phase: 'input',
       file: null,
+      comprehensiveData: null,
       pages: [],
       currentPage: null,
       layers: [],
+      frames: [],
+      error: null,
+      comprehensiveLoading: false,
+      apiProgress: {
+        file: false,
+        comments: false,
+        versions: false,
+        components: false,
+        styles: false,
+        user: false,
+      },
+    }));
+  };
+
+  const toggleMode = () => {
+    setState(prev => ({
+      ...prev,
+      useEnhanced: !prev.useEnhanced,
+      phase: 'input',
+      file: null,
+      comprehensiveData: null,
+      pages: [],
       error: null,
     }));
   };
@@ -371,21 +467,74 @@ function App() {
   return (
     <div className="App">
       {state.phase === 'input' && (
-        <InputForm
-          onConnect={handleConnect}
-          loading={false}
-          error={state.error}
-        />
+        <>
+          <div className="mode-toggle">
+            <button 
+              onClick={toggleMode} 
+              className="toggle-button"
+            >
+              Switch to {state.useEnhanced ? 'Basic' : 'Enhanced'} Mode
+            </button>
+          </div>
+          
+          {state.useEnhanced ? (
+            <EnhancedInputForm
+              onConnect={handleEnhancedConnect}
+              loading={state.comprehensiveLoading}
+              error={state.error}
+            />
+          ) : (
+            <InputForm
+              onConnect={handleConnect}
+              loading={false}
+              error={state.error}
+            />
+          )}
+        </>
       )}
       
       {state.phase === 'loading' && (
         <div className="loading-container">
           <div className="loading-content">
             <div className="loading-spinner large"></div>
-            <h2>Connecting to Figma...</h2>
-            <p>Fetching file information and pages</p>
+            <h2>
+              {state.useEnhanced 
+                ? `Connecting via ${state.connectionConfig?.method === 'mcp' ? 'MCP Server' : 'Direct API'}...`
+                : 'Connecting to Figma...'
+              }
+            </h2>
+            <p>
+              {state.useEnhanced 
+                ? 'Fetching comprehensive file data including components, styles, comments, and versions'
+                : 'Fetching file information and pages'
+              }
+            </p>
+            
+            {state.useEnhanced && state.comprehensiveLoading && (
+              <div className="progress-info">
+                <div className="progress-items">
+                  {Object.entries(state.apiProgress).map(([key, completed]) => (
+                    <div key={key} className={`progress-item ${completed ? 'completed' : ''}`}>
+                      {completed ? '✓' : '○'} {key}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      )}
+      
+      {state.phase === 'comprehensive' && state.comprehensiveData && state.file && (
+        <ComprehensiveDataView
+          data={state.comprehensiveData}
+          fileName={state.file.name}
+          connectionMethod={state.connectionConfig?.method || 'token'}
+          onBack={handleBack}
+          loading={state.comprehensiveLoading}
+          progress={state.apiProgress}
+          error={state.error}
+        />
       )}
       
       {state.phase === 'preview' && state.file && (

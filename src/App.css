@@ -19,6 +19,32 @@ body {
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
+  flex-direction: column;
+}
+
+/* Mode Toggle */
+.mode-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+}
+
+.toggle-button {
+  background: #0d7377;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-button:hover {
+  background: #0a5d61;
 }
 
 .loading-container {
@@ -49,7 +75,38 @@ body {
 .loading-content p {
   color: #666;
   font-size: 1rem;
-  margin: 0;
+  margin: 0 0 1rem 0;
+}
+
+/* Progress Info */
+.progress-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.progress-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.progress-item {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #e9ecef;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.progress-item.completed {
+  background: #d4edda;
+  color: #155724;
+  font-weight: 500;
 }
 
 .loading-spinner {
