@@ -137,8 +137,9 @@ const FrameView: React.FC<FrameViewProps> = ({
                 </div>
               ) : frame.error ? (
                 <div className="frame-error">
-                  <div className="error-icon">!</div>
-                  <span>Failed to load</span>
+                  <div className="placeholder-icon">▤</div>
+                  <span>Preview unavailable</span>
+                  <small>{frame.error}</small>
                 </div>
               ) : frame.thumbnailUrl ? (
                 <img

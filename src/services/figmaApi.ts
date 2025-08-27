@@ -295,6 +295,20 @@ class FigmaApiService {
           });
 
           console.log(`Batch results: ${successfulIds.length} successful, ${failedIds.length} failed`);
+          
+          // Log detailed information about failed IDs for debugging
+          if (failedIds.length > 0) {
+            console.warn(`Failed thumbnail generation for ${type}:`, {
+              fileId,
+              batchSize: batch.length,
+              failedIds,
+              requestParams: {
+                ids: idsParam,
+                format: 'png',
+                scale: 1
+              }
+            });
+          }
 
           // Handle failed IDs in this batch
           if (failedIds.length > 0 && retryCount < maxRetries) {
@@ -306,12 +320,17 @@ class FigmaApiService {
           } else if (failedIds.length > 0) {
             // Mark as permanently failed after max retries
             failedIds.forEach(id => {
-              result.errors[id] = `Failed to generate thumbnail after ${maxRetries + 1} attempts`;
+              result.errors[id] = `No thumbnail available (${maxRetries + 1} attempts)`;
             });
           }
 
         } catch (batchError) {
-          console.error(`Error processing batch of ${type}:`, batchError);
+          console.error(`Error processing ${type} batch:`, {
+            batchSize: batch.length,
+            nodeIds: batch,
+            error: batchError,
+            retryCount
+          });
           
           // If this is a network/timeout error and we haven't exceeded retries, try individual requests
           if (retryCount < maxRetries && this.isRetryableError(batchError)) {
@@ -373,7 +392,11 @@ class FigmaApiService {
         await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.error(`Failed individual request for ${type} ${nodeId}:`, error);
+        console.error(`Failed individual request for ${type} ${nodeId}:`, {
+          nodeId,
+          error: error,
+          retryCount
+        });
         result.errors[nodeId] = this.getErrorMessage(error);
       }
     }
@@ -395,11 +418,31 @@ class FigmaApiService {
     if (error.response) {
       const status = error.response.status;
       const message = error.response.data?.err || error.response.data?.message || 'Unknown error';
-      return `HTTP ${status}: ${message}`;
+      
+      // Provide user-friendly error messages
+      switch (status) {
+        case 400:
+          return 'Invalid request parameters';
+        case 401:
+          return 'Authentication failed';
+        case 403:
+          return 'Access denied';
+        case 404:
+          return 'Resource not found';
+        case 429:
+          return 'Rate limit exceeded';
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          return 'Server temporarily unavailable';
+        default:
+          return `API error (${status}): ${message}`;
+      }
     } else if (error.request) {
-      return 'Network error: Unable to reach Figma API';
+      return 'Network connection failed';
     } else {
-      return `Request error: ${error.message || 'Unknown error'}`;
+      return error.message || 'Unknown error occurred';
     }
   }
 }

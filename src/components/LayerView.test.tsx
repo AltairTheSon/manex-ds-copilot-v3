@@ -77,3 +77,42 @@ test('renders layer cards when layers are provided', () => {
   expect(layer1).toBeInTheDocument();
   expect(layer2).toBeInTheDocument();
 });
+
+test('shows improved error state for failed thumbnails', () => {
+  const layersWithError: LayerWithThumbnail[] = [
+    {
+      id: 'layer1',
+      name: 'Failed Layer',
+      type: 'RECTANGLE',
+      visible: true,
+      error: 'Network connection failed',
+      absoluteBoundingBox: {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50
+      }
+    }
+  ];
+  
+  const errorProps = { ...mockProps, layers: layersWithError };
+  render(<LayerView {...errorProps} />);
+  
+  const errorText = screen.getByText(/Preview unavailable/i);
+  const errorDetail = screen.getByText(/Network connection failed/i);
+  
+  expect(errorText).toBeInTheDocument();
+  expect(errorDetail).toBeInTheDocument();
+});
+
+test('renders filter tabs when multiple layer types are present', () => {
+  render(<LayerView {...mockProps} />);
+  
+  const allTab = screen.getByText(/All \(2\)/i);
+  const rectangleTab = screen.getByText(/Rectangle \(1\)/i);
+  const textTab = screen.getByText(/Text \(1\)/i);
+  
+  expect(allTab).toBeInTheDocument();
+  expect(rectangleTab).toBeInTheDocument();
+  expect(textTab).toBeInTheDocument();
+});

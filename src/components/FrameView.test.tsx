@@ -79,6 +79,33 @@ test('shows loading state for individual frames', () => {
   expect(loadingText).toBeInTheDocument();
 });
 
+test('shows improved error state for failed frame thumbnails', () => {
+  const framesWithError: FrameWithThumbnail[] = [
+    {
+      id: 'frame1',
+      name: 'Failed Frame',
+      type: 'FRAME',
+      visible: true,
+      error: 'Server temporarily unavailable',
+      absoluteBoundingBox: {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50
+      }
+    }
+  ];
+  
+  const errorProps = { ...mockProps, frames: framesWithError };
+  render(<FrameView {...errorProps} />);
+  
+  const errorText = screen.getByText(/Preview unavailable/i);
+  const errorDetail = screen.getByText(/Server temporarily unavailable/i);
+  
+  expect(errorText).toBeInTheDocument();
+  expect(errorDetail).toBeInTheDocument();
+});
+
 test('renders empty state when no frames provided', () => {
   const emptyProps = { ...mockProps, frames: [] };
   render(<FrameView {...emptyProps} />);
