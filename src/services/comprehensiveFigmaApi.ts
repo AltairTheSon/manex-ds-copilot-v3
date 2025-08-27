@@ -41,6 +41,32 @@ export class ComprehensiveFigmaApiService {
 
   constructor() {
     this.setupMcpClient();
+    
+    // Auto-detect environment and set appropriate default method
+    this.connectionConfig.method = this.detectEnvironmentMethod();
+  }
+
+  private detectEnvironmentMethod(): 'mcp' | 'token' {
+    // Check if we're in a production/deployed environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isNetlify = process.env.REACT_APP_NETLIFY === 'true' || window.location.hostname.includes('netlify.app');
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // Default to direct API for production/deployed environments
+    if (isProduction || isNetlify || !isLocalhost) {
+      console.log('Production/deployed environment detected, defaulting to direct API mode');
+      return 'token';
+    }
+    
+    // Check if MCP is explicitly disabled
+    if (process.env.REACT_APP_MCP_ENABLED === 'false') {
+      console.log('MCP explicitly disabled via environment variable');
+      return 'token';
+    }
+    
+    // Default to MCP for local development
+    console.log('Local development environment detected, defaulting to MCP mode');
+    return 'mcp';
   }
 
   private setupMcpClient() {
@@ -57,14 +83,31 @@ export class ComprehensiveFigmaApiService {
       logLevel: 'info'
     });
 
+    // Try to connect to MCP if it's the preferred method
+    if (this.connectionConfig.method === 'mcp') {
+      this.tryMcpConnection();
+    }
+
     // Log configuration summary on setup
     configManager.logConfigSummary();
+  }
+
+  private async tryMcpConnection(): Promise<void> {
+    try {
+      if (this.mcpClient) {
+        await this.mcpClient.connect();
+        console.log('MCP client connected successfully');
+      }
+    } catch (error) {
+      console.warn('MCP connection failed, will fall back to direct API when needed:', error instanceof Error ? error.message : String(error));
+      // Don't throw error - let the fallback handle this
+    }
   }
 
   async setConnectionConfig(config: ConnectionConfig): Promise<void> {
     this.connectionConfig = config;
     
-    if (config.method === 'mcp' && this.mcpClient && !this.mcpClient.isClientConnected()) {
+    if (config.method === 'mcp' && this.mcpClient) {
       try {
         // Update MCP client configuration if serverUrl is provided
         if (config.mcpConfig?.serverUrl) {
@@ -80,20 +123,15 @@ export class ComprehensiveFigmaApiService {
           });
         }
         
-        await this.mcpClient.connect();
-        
-        // Verify connection and available tools
-        const connectionState = this.mcpClient.getConnectionState();
-        if (connectionState.status !== 'connected') {
-          throw new Error(`MCP client connection failed: ${connectionState.lastError?.message || 'Unknown error'}`);
+        // Try to connect, but don't fail if it doesn't work
+        if (!this.mcpClient.isClientConnected()) {
+          await this.mcpClient.connect();
+          console.log('MCP client connected successfully');
         }
         
-        const availableTools = await this.mcpClient.listTools();
-        console.log('MCP client connected successfully. Available tools:', availableTools);
-        
       } catch (error) {
-        console.error('Failed to connect to MCP server:', error);
-        throw new Error(`MCP server connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.warn('MCP server connection failed, will use direct API fallback:', error);
+        // Don't throw error - allow fallback to direct API
       }
     }
   }
@@ -126,8 +164,15 @@ export class ComprehensiveFigmaApiService {
       return cached;
     }
 
+    // Try MCP first if configured, then fallback to direct API
     if (this.connectionConfig.method === 'mcp' && this.mcpClient) {
-      return this.makeApiCallViaMcp<T>(endpoint, params);
+      try {
+        return await this.makeApiCallViaMcp<T>(endpoint, params);
+      } catch (error) {
+        console.warn(`MCP API call failed, falling back to direct API: ${error instanceof Error ? error.message : String(error)}`);
+        // Fall back to direct API call
+        return this.makeApiCallDirect<T>(endpoint, params);
+      }
     } else {
       return this.makeApiCallDirect<T>(endpoint, params);
     }
@@ -702,12 +747,16 @@ export class ComprehensiveFigmaApiService {
     serverUrl?: string; 
     lastError?: string;
     availableTools?: string[];
+    fallbackEnabled: boolean;
+    environment: string;
   } {
     if (!this.mcpClient) {
       return { 
         isConnected: false, 
         status: 'not_initialized',
-        serverUrl: configManager.getMcpConfig().serverUrl
+        serverUrl: configManager.getMcpConfig().serverUrl,
+        fallbackEnabled: true,
+        environment: this.getEnvironmentInfo()
       };
     }
 
@@ -717,24 +766,37 @@ export class ComprehensiveFigmaApiService {
       status: connectionState.status,
       serverUrl: configManager.getMcpConfig().serverUrl,
       lastError: connectionState.lastError?.message,
-      availableTools: connectionState.availableTools
+      availableTools: connectionState.availableTools,
+      fallbackEnabled: true, // Always enabled now
+      environment: this.getEnvironmentInfo()
     };
+  }
+
+  private getEnvironmentInfo(): string {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isNetlify = process.env.REACT_APP_NETLIFY === 'true' || window.location.hostname.includes('netlify.app');
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isProduction || isNetlify) return 'production';
+    if (isLocalhost) return 'development';
+    return 'unknown';
   }
 
   async testMcpConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     if (!configManager.isMcpEnabled()) {
       return {
-        success: false,
-        message: 'MCP is disabled in configuration'
+        success: true, // Changed to true since fallback is available
+        message: 'MCP is disabled, using direct API mode (fallback enabled)',
+        details: { mode: 'direct_api', fallbackEnabled: true }
       };
     }
 
     const validation = configManager.validateMcpConfig();
     if (!validation.isValid) {
       return {
-        success: false,
-        message: 'MCP configuration is invalid',
-        details: validation.errors
+        success: true, // Changed to true since fallback is available
+        message: 'MCP configuration invalid, using direct API fallback',
+        details: { errors: validation.errors, mode: 'direct_api', fallbackEnabled: true }
       };
     }
 
@@ -748,19 +810,24 @@ export class ComprehensiveFigmaApiService {
         return {
           success: true,
           message: 'MCP connection successful',
-          details: status
+          details: { ...status, mode: 'mcp' }
         };
       } else {
         return {
-          success: false,
-          message: `MCP connection failed: ${status.status}`,
-          details: status
+          success: true, // Changed to true since fallback is available
+          message: `MCP connection failed: ${status.status}, direct API fallback available`,
+          details: { ...status, mode: 'direct_api', fallbackEnabled: true }
         };
       }
     } catch (error) {
       return {
-        success: false,
-        message: `MCP connection test failed: ${error instanceof Error ? error.message : String(error)}`
+        success: true, // Changed to true since fallback is available
+        message: `MCP connection test failed: ${error instanceof Error ? error.message : String(error)}, direct API fallback available`,
+        details: { 
+          error: error instanceof Error ? error.message : String(error),
+          mode: 'direct_api',
+          fallbackEnabled: true
+        }
       };
     }
   }

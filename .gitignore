@@ -5,6 +5,9 @@
 /.pnp
 .pnp.js
 
+# MCP server dependencies
+/mcp-server/node_modules
+
 # testing
 /coverage
 
